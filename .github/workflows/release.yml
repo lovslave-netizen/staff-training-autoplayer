@@ -1,0 +1,55 @@
+name: release
+
+# 릴리스 방법: version.py 의 __version__ 을 올리고 커밋 → 같은 번호의 태그를 push
+#   git tag v1.0.1 ; git push origin v1.0.1
+# 그러면 exe 와 .sha256 이 GitHub Releases 에 올라가고,
+# 사용자의 프로그램이 다음 실행 때 자동으로 새 버전으로 교체한다.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  PYTHONUTF8: "1"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: 태그와 version.py 일치 확인
+        shell: pwsh
+        run: |
+          $v = (python -c "from version import __version__ as v; print(v)").Trim()
+          if ("v$v" -ne $env:GITHUB_REF_NAME) { throw "태그($env:GITHUB_REF_NAME)와 version.py($v)가 다릅니다" }
+
+      - name: 테스트
+        run: python test_updater.py
+
+      - name: exe 빌드
+        run: pyinstaller --onefile --noconsole --name staff-training-autoplayer autoplayer.py
+
+      - name: 체크섬 생성
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash dist/staff-training-autoplayer.exe -Algorithm SHA256).Hash.ToLower()
+          "$h  staff-training-autoplayer.exe" | Out-File -Encoding ascii dist/staff-training-autoplayer.exe.sha256
+
+      - name: 릴리스 생성
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME dist/staff-training-autoplayer.exe dist/staff-training-autoplayer.exe.sha256 --title $env:GITHUB_REF_NAME --generate-notes

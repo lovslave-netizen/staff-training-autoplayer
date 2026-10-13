@@ -1,0 +1,5 @@
+"""버전은 여기 한 곳에서만 바꾼다. 릴리스 태그(v1.0.1 등)와 반드시 같아야 한다."""
+__version__ = "1.0.0"
+REPO = "lovslave-netizen/staff-training-autoplayer"
+ASSET_EXE = "staff-training-autoplayer.exe"
+ASSET_SHA = "staff-training-autoplayer.exe.sha256"
