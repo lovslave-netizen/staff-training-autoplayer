@@ -669,7 +669,6 @@ def main():
     notice = None
     if "--notice" in args:
         notice = open(args[args.index("--notice") + 1], encoding="utf-8").read()
-    updater.cleanup_old()
     if "--no-update" not in args and not already_running_peek():
         if run_update():
             return  # 새 버전이 설치되어 다시 시작됨
@@ -705,39 +704,34 @@ def warn(title, msg):
 
 
 def run_update():
-    """새 버전이 있으면 내려받아 교체. 교체했으면 True. 진행은 작은 안내창으로 보여준다."""
-    splash = {"win": None, "lbl": None}
-
-    def notify(text):
-        try:
-            import tkinter as tk
-            w = tk.Tk()
-            w.title("업데이트")
-            w.attributes("-topmost", True)
-            w.geometry("360x90")
-            lbl = tk.Label(w, text=text, font=("맑은 고딕", 11))
-            lbl.pack(expand=True)
-            w.update()
-            splash["win"], splash["lbl"] = w, lbl
-        except Exception:
-            pass
-
-    def progress(got, total):
-        try:
-            if splash["lbl"]:
-                splash["lbl"].config(text=f"새 버전을 내려받는 중... {got * 100 // total}%")
-                splash["win"].update()
-        except Exception:
-            pass
-
+    """새 버전이 있으면 안내창을 띄운다. '예'면 브라우저로 내려받게 하고 True(= 이 프로그램은 종료)."""
+    info = updater.check_update(log=log)
+    if not info:
+        return False
     try:
-        return updater.check_and_update(log=log, progress=progress, notify=notify)
-    finally:
+        import tkinter as tk
+        from tkinter import messagebox
+        r = tk.Tk()
+        r.withdraw()
+        r.attributes("-topmost", True)
+        ok = messagebox.askyesno(
+            "새 버전이 있습니다",
+            f"새 버전 {info['tag']}이(가) 있습니다. (현재 v{__version__})\n\n"
+            "[예]  브라우저로 새 파일을 내려받고, 이 프로그램은 종료합니다.\n"
+            "        (내려받은 파일을 실행하세요. 이전 파일은 지워도 됩니다)\n\n"
+            "[아니오]  이번에는 현재 버전으로 계속합니다.",
+            parent=r)
+        r.destroy()
+    except Exception:
+        return False
+    if ok:
         try:
-            if splash["win"]:
-                splash["win"].destroy()
+            import webbrowser
+            webbrowser.open(info["url"])
         except Exception:
             pass
+        return True
+    return False
 
 
 if __name__ == "__main__":
